@@ -1,185 +1,223 @@
-// Mouse race chassis. All dimensions are in millimetres.
-// In OpenSCAD, choose part, press F6, then File > Export > Export as STL.
+// MoseRase, in millimetres. Assembly: +Y forward, Z=0 at the track.
+// Printable parts are automatically placed flat on Z=0.
 
 /* [Model] */
-part = "assembly_l298"; // [assembly_l298,assembly_drv8833,chassis,sensor_arm,l298_mount,drv8833_mount,skid]
-wheel_diameter = 60;
-wheel_setup = "two"; // [two,four_coaxial]
+part = "assembly_l298"; // [assembly_l298,assembly_drv8833,chassis,nose,l298_mount,drv8833_mount,skid,anti_wheelie]
+front_support = "skid"; // [skid,pololu_952]
+battery_center_y = 30; // [24:0.5:44]
+sensor_y_adjustment = 0; // [-2:0.5:2]
+sensor_spacer = 4.7; // [3:0.1:6]
 skid_tape_thickness = 0.4;
 
-/* [Mounting adjustments] */
-// Measure the green Makerfabs PCB. These defaults are estimated from a photo.
+/* [PCB mounting] */
 l298_pitch_x = 38.5;
 l298_pitch_y = 33.5;
-// The two inner holes on the BFD-style sensor, measured across the PCB.
 sensor_inner_hole_pitch = 74;
-sensor_travel_position = 0; // [-4.5:0.5:4.5]
 
 /* [Hidden] */
-$fn = 48;
-eps = 0.02;
-deck = 3.2;
-adapter_t = 3.2;
-four_wheels = wheel_setup == "four_coaxial";
-motor_shift = four_wheels ? 9 : 0;
-front_shift = four_wheels ? 18 : 0;
-motor_x = 39.2 + motor_shift;
+$fn = 40;
+eps = 0.03;
+floor_clearance = 7;
+floor_t = 3.2;
+floor_top = floor_clearance + floor_t;
+tray_width = 43;
+tray_length = 76;
+motor_x = 44;
 motor_w = 18.8;
 motor_h = 22.3;
-motor_rear = 53.22;
-motor_front = 11.28;
-motor_axis_z = deck + motor_h/2;
-floor_z = motor_axis_z - wheel_diameter/2;
-driver_y = -48;
-driver_anchor = 22;
-driver_spacer = 6;
-sensor_x = 30;
-sensor_y = four_wheels ? 52 : 43;
-sensor_anchor = 9.5;
-sensor_travel = 4.5;
-skid_y = 27;
-skid_h = -floor_z - skid_tape_thickness;
-sensor_washer = 1.5;
-battery_y = 18;
-esp_x = 37;
-esp_y = 42 + front_shift;
+motor_shaft_z = 30;
+motor_bottom = motor_shaft_z-motor_h/2;
+motor_hole_y = 20.47;
+motor_hole_spacing = 17.3;
+motor_inner_x = motor_x-motor_w/2;
+tower_t = 6;
+wheel_gap = 3.4;
+wheel_w = 12;
+wheel_d = 60;
+driver_y = 105.6;
+driver_anchor_x = 31.4;
+driver_anchor_dy = 10.9;
+adapter_t = 3.2;
+driver_pcb_gap = 2.5;
+esp_x = 41.5;
+esp_y = 83.5;
+nose_seat = 15.65;
+nose_screw_x = 30;
+nose_screw_ys = [124,134];
+support_y = 132;
+sensor_mount_y = 147;
+rear_screw_y = -23;
+rear_gap = 3;
 
-module round_rect(w, l, r) {
-    hull() {
-        for (x = [-w/2+r, w/2-r], y = [-l/2+r, l/2-r])
-            translate([x,y]) circle(r=r);
-    }
+module round_rect(w,l,r) {
+    hull() for (x=[-w/2+r,w/2-r], y=[-l/2+r,l/2-r])
+        translate([x,y]) circle(r=r);
 }
 
-module slot(a, b, d) {
-    hull() {
-        for (p = [a,b]) translate(p) circle(d=d);
-    }
-}
-
-module relief(w, l, r, x, y) {
+module relief(w,l,r,x,y) {
     translate([x,y]) round_rect(w,l,r);
 }
 
-module cut_through(h) {
-    translate([0,0,-eps]) linear_extrude(height=h+2*eps) children();
+module box(w,l,h,x,y,z,r=1) {
+    translate([x,y,z]) linear_extrude(height=h) round_rect(w,l,r);
+}
+
+module holes(points,d) {
+    for (p=points) translate(p) circle(d=d);
+}
+
+module extrude_at(z,h) {
+    translate([0,0,z]) linear_extrude(height=h) children();
+}
+
+module nose_mount_holes() {
+    holes([for (s=[-1,1],y=nose_screw_ys) [s*nose_screw_x,y]],3.4);
+}
+
+module driver_anchors() {
+    holes([[-driver_anchor_x,driver_anchor_dy],[driver_anchor_x,driver_anchor_dy]],3.4);
 }
 
 module chassis_outline() {
-    offset(r=2.8) offset(delta=-2.8)
-    polygon([
-        [-23,-75], [23,-75], [49+motor_shift,-56], [49+motor_shift,32],
-        [53,40], [53,64+front_shift], [45,72+front_shift],
-        [-45,72+front_shift], [-53,64+front_shift], [-53,40],
-        [-49-motor_shift,32], [-49-motor_shift,-56]
-    ]);
-}
-
-module chassis_plate() {
-    linear_extrude(height=deck) difference() {
-        chassis_outline();
-
-        relief(47, 32, 5, 0, -48);
-        relief(32, 18, 4, 0, -10);
-        relief(30, 13, 4, 0, 10);
-        relief(31, 12.5, 4, 0, 43);
-        relief(35, 11, 4, 0, 62);
-
-        for (side = [-1,1]) {
-            relief(12, 20, 4, side*40, 41+front_shift);
-            if (four_wheels)
-                relief(10.1,64.6,2.3,side*31.55,0);
-            for (y = [-30,-8]) {
-                if (four_wheels)
-                    relief(3.5,6.2,1.5,side*(y == -30 ? 36.65 : 36.6),y);
-                else
-                    relief(3.5,6.2,1.5,side*(y == -30 ? 27.08 : 27),y);
-                relief(3,6.6,1.4,side*(49.8+motor_shift),y);
-            }
-            for (y = [3,43])
-                relief(4.2, 10.8, 1.6, side*23, y);
-            for (p = [[26,21],[46,21],[26.1,61],[49,61]])
-                relief(3.5,5.4,1.4,side*p[0],p[1]+front_shift);
-            for (y = [sensor_y-sensor_anchor, sensor_y+sensor_anchor])
-                translate([side*sensor_x,y]) circle(d=3.4);
-            translate([side*7.35,skid_y]) circle(d=2.4);
+    union() {
+        relief(55,100,3,0,34);
+        relief(31,15,4,0,-21.5);
+        for (side=[-1,1]) {
+            relief(20,71,4,side*42,23);
+            relief(25,91,5,side*40,93.5);
         }
-        for (y = [driver_y-driver_anchor, driver_y+driver_anchor])
-            translate([0,y]) circle(d=3.4);
-        translate([0,skid_y]) circle(d=3.5);
+        relief(103,10,4,0,-8);
+        relief(103,16,4,0,motor_hole_y);
+        relief(103,11,4,0,51);
+        relief(12,53,3,0,105);
+        relief(83,9,3,0,133);
     }
 }
 
-module pad(x,y,w,l,h,r=1.1) {
-    translate([x,y,deck-eps])
-        linear_extrude(height=h+eps) round_rect(w,l,r);
+module chassis_floor() {
+    extrude_at(floor_clearance,floor_t) difference() {
+        chassis_outline();
+        for (s=[-1,1]) {
+            relief(10,25,3,s*42,78);
+            relief(9,13,2,s*43,116);
+            for (p=[[30,67],[49,67],[30.1,105],[49.12,105]])
+                relief(2.8,5.2,1.25,s*p[0],p[1]);
+            for (y=[9,59]) relief(3.5,10.6,1.5,s*24,y);
+            for (x=[32,49.5]) relief(2.8,6.2,1.25,s*x,43);
+        }
+        nose_mount_holes();
+        relief(23.5,21,3,0,support_y);
+        holes([[-6,rear_screw_y],[6,rear_screw_y]],3.4);
+    }
+}
+
+module motor_hole_profile() {
+    hull() {
+        circle(d=3.4);
+        translate([0,1.7*sqrt(2)]) circle(d=0.04,$fn=12);
+    }
+}
+
+module motor_hole(z) {
+    multmatrix([
+        [0,0,1,motor_inner_x-tower_t-8],
+        [1,0,0,motor_hole_y],
+        [0,1,0,z],
+        [0,0,0,1]
+    ]) linear_extrude(height=tower_t+10) motor_hole_profile();
+}
+
+module right_motor_tower() {
+    difference() {
+        union() {
+            box(tower_t,15,33,motor_inner_x-tower_t/2,motor_hole_y,
+                floor_top-eps,0.8);
+            // The root widens toward the floor. The upper end of each screw
+            // and its nut keep a clear corridor alongside the battery.
+            hull() {
+                box(9,15,0.8,motor_inner_x-4.5,motor_hole_y,floor_top-eps,0.8);
+                box(6,15,0.8,motor_inner_x-3,motor_hole_y,19,0.8);
+            }
+        }
+        for (s=[-1,1]) motor_hole(motor_shaft_z+s*motor_hole_spacing/2);
+    }
+}
+
+module countersink_from_floor(x,y) {
+    translate([x,y,floor_clearance]) rotate_extrude()
+        polygon([[0,-eps],[3.25,-eps],[1.7,1.55],
+                 [1.7,floor_t+eps],[0,floor_t+eps]]);
 }
 
 module chassis() {
-    union() {
-        chassis_plate();
-        for (side = [-1,1]) {
-            // Short guides touch the flat gearbox side. The inner shaft stays free.
-            for (y = [-44,-18])
-                if (four_wheels)
-                    pad(side*(y == -44 ? 37.96 : 38.04),y,1.15,8,4.4,0.35);
-                else
-                    pad(side*(y == -44 ? 28.22 : 28.3),y,2.6,8,4.4);
-            pad(side*motor_x,12.75,13,2.5,4.5);
-
-            // These pads leave the controller's underside and pin rows clear.
-            for (y = [25,57])
-                pad(side*esp_x,y+front_shift,12,7,3.0);
-        }
-    }
-}
-
-module sensor_anchor_sinks() {
-    for (y = [-sensor_anchor,sensor_anchor]) hull() {
-        for (end = [-sensor_travel,sensor_travel])
-            translate([0,y+end,-eps])
-                cylinder(h=1.42,d1=6.3,d2=3.45);
-    }
-}
-
-module sensor_arm() {
     difference() {
-        linear_extrude(height=adapter_t) hull() {
-            for (y = [-15,15]) translate([0,y]) circle(r=4.8);
-            translate([16.2,0]) circle(r=5.1);
+        union() {
+            chassis_floor();
+            for (s=[-1,1]) {
+                // Tray rails and shelf faces are printed with the frame.
+                box(2.3,95,4.0,s*26,34,floor_top-eps,0.75);
+                for (y=[6,34])
+                    box(13,9,motor_bottom-floor_top+eps,s*motor_x,y,
+                        floor_top-eps,1.1);
+                for (y=[63,109])
+                    box(10,5,2,s*(y==63 ? esp_x-0.12 : esp_x),y,floor_top-eps,0.8);
+                for (y=nose_screw_ys)
+                    box(7.7,7.7,nose_seat-floor_top+eps,s*nose_screw_x,y,
+                        floor_top-eps,1);
+            }
+            for (y=[-15,83])
+                box(29,1.8,2.5,0,y,floor_top-eps,0.65);
+            right_motor_tower();
+            mirror([1,0,0]) right_motor_tower();
         }
-        cut_through(adapter_t) {
-            for (y = [-sensor_anchor,sensor_anchor])
-                slot([0,y-sensor_travel],[0,y+sensor_travel],3.4);
-            slot([4,0],[14,0],3.4);
+        extrude_at(floor_top-eps,nose_seat-floor_top+2*eps) nose_mount_holes();
+        for (s=[-1,1])
+            countersink_from_floor(s*driver_anchor_x,driver_y+driver_anchor_dy);
+    }
+}
+
+module nose_outline() {
+    union() {
+        relief(70,8,1.8,0,support_y);
+        for (s=[-1,1]) hull() {
+            relief(10,8,2,s*nose_screw_x,124);
+            relief(15,13,2,s*37,sensor_mount_y+0.4);
         }
-        // Screw heads go underneath, flush with the underside next to the sensor.
-        sensor_anchor_sinks();
+    }
+}
+
+module nose() {
+    linear_extrude(height=adapter_t) difference() {
+        nose_outline();
+        nose_mount_holes();
+        holes([[0,support_y]],3.5);
+        holes([[-7.35,support_y],[7.35,support_y]],2.4);
+        for (s=[-1,1]) relief(9.6,7.4,1.65,s*37,sensor_mount_y);
     }
 }
 
 module driver_spine() {
-    slot([0,-driver_anchor],[0,driver_anchor],10);
-}
-
-module driver_attachment_holes() {
-    for (y = [-driver_anchor,driver_anchor])
-        translate([0,y]) circle(d=3.4);
+    union() {
+        relief(10,43,4,0,-1.5);
+        for (s=[-1,1]) hull() {
+            relief(9,9,2,0,8);
+            translate([s*driver_anchor_x,driver_anchor_dy]) circle(r=4.6);
+        }
+    }
 }
 
 module l298_mount() {
-    assert(l298_pitch_x >= 29 && l298_pitch_x <= 46);
-    assert(l298_pitch_y >= 26 && l298_pitch_y <= 41);
     linear_extrude(height=adapter_t) difference() {
         union() {
             driver_spine();
-            for (side = [-1,1])
-                relief(l298_pitch_x+13,13.4,2,
-                       0,side*l298_pitch_y/2);
+            for (s=[-1,1])
+                relief(l298_pitch_x+13,13.4,2,0,s*l298_pitch_y/2);
         }
-        driver_attachment_holes();
-        for (side_x = [-1,1], side_y = [-1,1])
-            relief(7.6,7.6,1.25,side_x*l298_pitch_x/2,side_y*l298_pitch_y/2);
+        driver_anchors();
+        relief(23.5,21,3,0,support_y-driver_y);
+        relief(46,16,1,0,74.6-driver_y);
+        for (sx=[-1,1],sy=[-1,1])
+            relief(7.6,7.6,1.25,sx*l298_pitch_x/2,sy*l298_pitch_y/2);
     }
 }
 
@@ -187,136 +225,141 @@ module drv8833_mount() {
     linear_extrude(height=adapter_t) difference() {
         union() {
             driver_spine();
-            round_rect(33,33,3);
+            round_rect(32,30,3);
         }
-        driver_attachment_holes();
-        for (side = [-1,1], y = [-7.5,7.5])
-            relief(3.5,5.4,1.4,side*13,y);
+        driver_anchors();
+        for (s=[-1,1],y=[-7.5,7.5]) relief(3.5,5.4,1.4,s*12.5,y);
     }
 }
 
 module skid() {
-    assert(skid_h > 9);
+    h = nose_seat-skid_tape_thickness;
     rotate_extrude() polygon([
-        [1.75,0], [9,0], [9,2],
-        [7.8,skid_h-4.2], [6.5,skid_h-1.0], [5.5,skid_h],
-        [3.55,skid_h], [3.55,6.4], [1.75,6.4]
+        [1.75,0],[9,0],[9,2],[7.8,h-4.2],[6.5,h-1],[5.5,h],
+        [3.55,h],[3.55,6.4],[1.75,6.4]
     ]);
 }
 
-module centred_box(w,l,h,x,y,z,r=1) {
-    translate([x,y,z]) linear_extrude(height=h) round_rect(w,l,r);
-}
-
-// Assembly envelopes for layout and clearance. They are preview geometry.
-module motor_reference(side) {
-    color("#e9ae24")
-        centred_box(motor_w,44,22.3,side*motor_x,motor_front-22,deck,2.3);
-    color("#c0c6ca")
-        translate([side*motor_x,-motor_rear,deck+motor_h/2])
-        rotate([-90,0,0]) cylinder(d=18.2,h=22);
-    color("#e5dfce")
-        translate([side*(motor_x-motor_w/2-9.1),0,motor_axis_z])
-        rotate([0,side*90,0]) cylinder(d=5.4,h=37);
-}
-
-module wheel_reference(side, inner=false) {
-    direction = inner ? -side : side;
-    x = side*motor_x + direction*(motor_w/2+3.4);
-    width = four_wheels ? 8 : 12;
-    color("#343d49") translate([x,0,motor_axis_z])
-        rotate([0,direction*90,0])
-        difference() {
-            cylinder(d=wheel_diameter,h=width);
-            translate([0,0,-eps]) cylinder(d=wheel_diameter-7,h=width+2*eps);
+module anti_wheelie() {
+    h = floor_clearance-rear_gap;
+    difference() {
+        hull() {
+            box(26,11,0.8,0,0,0,2.5);
+            box(22,9.2,0.4,0,1,h-0.4,2.2);
         }
-    color("#aab6bd") translate([x+direction*1.2,0,motor_axis_z])
-        rotate([0,direction*90,0]) cylinder(d=wheel_diameter-6.8,h=width-2.4);
+        for (x=[-6,6]) translate([x,0,0]) rotate_extrude()
+            polygon([[0,-eps],[1.7,-eps],[1.7,h-1.55],
+                     [3.25,h+eps],[0,h+eps]]);
+    }
 }
 
-module board_reference(is_l298) {
-    z = deck + driver_spacer + adapter_t;
+module motor_reference(s) {
+    color("#e9ae24")
+        box(motor_w,44,motor_h,s*motor_x,22-11.28,motor_bottom,2.3);
+    color("#c0c6ca") translate([s*motor_x,31.2,motor_shaft_z])
+        rotate([-90,0,0]) cylinder(d=18.2,h=22);
+    color("#e5dfce") translate([s*(motor_inner_x-9.1),0,motor_shaft_z])
+        rotate([0,s*90,0]) cylinder(d=5.4,h=37);
+}
+
+module wheel_reference(s) {
+    x = s*(motor_x+motor_w/2+wheel_gap);
+    color("#343d49") translate([x,0,motor_shaft_z]) rotate([0,s*90,0])
+        difference() {
+            cylinder(d=wheel_d,h=wheel_w);
+            translate([0,0,-eps]) cylinder(d=wheel_d-7,h=wheel_w+2*eps);
+        }
+    color("#aab6bd") translate([x+s*1.2,0,motor_shaft_z]) rotate([0,s*90,0])
+        cylinder(d=wheel_d-6.8,h=wheel_w-2.4);
+}
+
+module battery_reference() {
+    color("#454b57") box(tray_width,tray_length,5,0,battery_center_y,floor_top,2.2);
+    for (x=[-10.1,10.1]) color("#6993b8")
+        translate([x,battery_center_y-32.5,floor_top+10.5])
+            rotate([-90,0,0]) cylinder(d=18.4,h=65);
+}
+
+module driver_reference(is_l298) {
+    z = floor_top+adapter_t+driver_pcb_gap;
+    color(is_l298 ? "#e9a06e" : "#9b9de1") translate([0,driver_y,floor_top])
+        if (is_l298) l298_mount(); else drv8833_mount();
     if (is_l298) {
-        color("#2a7b55") centred_box(l298_pitch_x+10,l298_pitch_y+9,1.6,
-                                      0,driver_y,z+6,3.2);
-        color("#282d35") centred_box(13,26,15,18,driver_y,z+7.6,1.5);
+        color("#2a7b55") box(l298_pitch_x+10,l298_pitch_y+9,1.6,0,driver_y,z,3.2);
+        color("#282d35") box(13,26,15,18,driver_y,z+1.6,1.5);
         color("#376aa2") {
-            centred_box(7,15,8,-19,driver_y,z+7.6);
-            for (y = [-16,16])
-                centred_box(10,7,8,-10,driver_y+y,z+7.6);
+            box(7,15,8,-19,driver_y,z+1.6);
+            for (dy=[-16,16]) box(10,7,8,-10,driver_y+dy,z+1.6);
         }
     } else {
-        color("#202f4b") centred_box(12.7,20.3,1.6,0,driver_y,z+1.0);
-        color("#33353d") centred_box(5,5,1.6,0,driver_y,z+2.6);
+        color("#202f4b") box(12.7,20.3,1.6,0,driver_y,z,1);
+        color("#33353d") box(5,5,1.6,0,driver_y,z+1.6,1);
     }
 }
 
 module sensor_reference() {
-    y = sensor_y+sensor_travel_position;
-    z = -adapter_t-sensor_washer-1.6;
+    y = sensor_mount_y+sensor_y_adjustment;
+    z = nose_seat-sensor_spacer-1.6;
     color("#285c92") difference() {
         union() {
-            centred_box(128,15,1.6,0,y+4.7,z,1.25);
-            translate([0,y,z]) linear_extrude(height=1.6)
+            box(128,15,1.6,0,y+4.7,z,1.25);
+            extrude_at(z,1.6) translate([0,y])
                 polygon([[-22,9],[22,9],[11,28],[-11,28]]);
         }
-        for (side = [-1,1])
-            translate([side*sensor_inner_hole_pitch/2,y,z-eps])
-                cylinder(d=3.2,h=1.6+2*eps);
+        extrude_at(z-eps,1.6+2*eps)
+            holes([[-sensor_inner_hole_pitch/2,y],[sensor_inner_hole_pitch/2,y]],3.2);
     }
     color("#252b34") {
-        for (x = [-54,-28,28,54])
-            centred_box(7,7,5.8,x,y+5,z-5.8,1);
-        centred_box(7,7,5.8,0,y+19,z-5.8,1);
+        for (x=[-54,-28,28,54]) box(7,7,5.8,x,y+5,z-5.8,1);
+        box(7,7,5.8,0,y+19,z-5.8,1);
+    }
+}
+
+module controller_reference() {
+    color("#252d3b") box(28,55,1.6,esp_x,esp_y,floor_top+2,1.3);
+    color("#98a6ad") box(8,6,3,esp_x,esp_y+25.8,floor_top+3.6,0.8);
+}
+
+module support_reference() {
+    if (front_support=="skid")
+        color("#a7aeb4") translate([0,support_y,nose_seat]) rotate([180,0,0]) skid();
+    else {
+        color("#353b42") box(20.3,15.2,8,0,support_y,5.5,3.5);
+        color("#cacdd1") translate([0,support_y,6.35]) sphere(d=12.7);
+        color("#c6c1b6") box(20.3,15.2,nose_seat-13.5,0,support_y,13.5,3.5);
     }
 }
 
 module assembly(is_l298) {
-    assert(abs(sensor_travel_position) <= sensor_travel);
-    assert(sensor_inner_hole_pitch >= 2*(sensor_x+4)
-           && sensor_inner_hole_pitch <= 2*(sensor_x+14));
     color("#e5e9ec") chassis();
-    color("#a7aeb4") translate([0,skid_y,0]) rotate([180,0,0]) skid();
-    for (side = [-1,1]) {
-        motor_reference(side);
-        wheel_reference(side);
-        if (four_wheels) wheel_reference(side,true);
-        color("#31a896")
-            translate([side*sensor_x,sensor_y+sensor_travel_position,-adapter_t])
-                rotate([0,0,side==1 ? 0 : 180]) sensor_arm();
+    color("#31a896") translate([0,0,nose_seat]) nose();
+    color("#a7aeb4") translate([0,rear_screw_y,floor_clearance])
+        rotate([180,0,0]) anti_wheelie();
+    for (s=[-1,1]) {
+        motor_reference(s);
+        wheel_reference(s);
     }
-    for (offset_y = [-driver_anchor,driver_anchor])
-        color("#a7aeb4") translate([0,driver_y+offset_y,deck])
-            cylinder(d=6,h=driver_spacer);
-    color(is_l298 ? "#e9a06e" : "#9b9de1")
-        translate([0,driver_y,deck+driver_spacer])
-            if (is_l298) l298_mount(); else drv8833_mount();
-    board_reference(is_l298);
-    color("#454b57")
-        centred_box(43,76,8,0,battery_y,deck+4,2.5);
-    for (x = [-10.1,10.1])
-        color("#6993b8") translate([x,battery_y-32.5,deck+14.5])
-            rotate([-90,0,0]) cylinder(d=18.4,h=65);
-    color("#252d3b")
-        centred_box(28,55,1.6,esp_x,esp_y,deck+3,1.3);
-    color("#98a6ad")
-        centred_box(8,6,3,esp_x,esp_y+25.8,deck+4.6,0.8);
-    color("#4d535d")
-        centred_box(15,21,6,-38,56+front_shift,deck+3,1.5);
-    if (!is_l298)
-        color("#318c74") centred_box(21,27,8,-38,30+front_shift,deck+3,1.5);
+    battery_reference();
+    driver_reference(is_l298);
+    controller_reference();
+    color("#4d535d") box(15,21,6,-38,101,floor_top+2,1.5);
+    if (!is_l298) color("#318c74") box(21,27,8,-38,72,floor_top+2,1.5);
+    support_reference();
     sensor_reference();
 }
 
-if (part == "chassis") chassis();
-else if (part == "sensor_arm") sensor_arm();
-else if (part == "l298_mount") l298_mount();
-else if (part == "drv8833_mount") drv8833_mount();
-else if (part == "skid") skid();
-else if (part == "assembly_l298") assembly(true);
-else if (part == "assembly_drv8833") assembly(false);
-else assert(false, "Choose a supported part in the Customizer.");
+assert(battery_center_y>=24 && battery_center_y<=44);
+assert(abs(sensor_y_adjustment)<=2);
+assert(sensor_inner_hole_pitch>=68 && sensor_inner_hole_pitch<=80);
+assert(l298_pitch_x>=34 && l298_pitch_x<=41);
+assert(l298_pitch_y>=29 && l298_pitch_y<=35);
 
-assert(wheel_setup == "two" || wheel_setup == "four_coaxial");
-assert(wheel_diameter <= 60 || !four_wheels,
-       "Four-wheel slots are designed for 60 mm tires.");
+if (part=="chassis") translate([0,0,-floor_clearance]) chassis();
+else if (part=="nose") nose();
+else if (part=="l298_mount") l298_mount();
+else if (part=="drv8833_mount") drv8833_mount();
+else if (part=="skid") skid();
+else if (part=="anti_wheelie") anti_wheelie();
+else if (part=="assembly_l298") assembly(true);
+else if (part=="assembly_drv8833") assembly(false);
+else assert(false,"Choose a part from the Model section.");
