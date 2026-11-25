@@ -104,21 +104,25 @@ module frame_floor(fan_ready=false) {
     plate_at(floor_clearance,floor_t) difference() {
         union() {
             floor_outline();
-            if (fan_ready)
-                for (side=[-1,1]) rr(11,47,2,side*26.1,37);
+            if (fan_ready) {
+                rr(91,6,2,0,-30.3);
+                for (side=[-1,1]) {
+                    rr(18,24,2,side*36,-20);
+                    rr(11,11,2,side*35.8,80.55);
+                    for (y=[23,58]) rr(11,10,2,side*39.4,y);
+                }
+            }
         }
         if (fan_ready)
-            for (side=[-1,1]) {
-                rr(6,27,1,side*26.3,37);
-                holes([[side*26.3,17.5],[side*26.3,56.5]],3.4);
-            }
+            rr(55,105,1.5,0,23.5);
         rr(23,15,4,0,12);
         rr(24,16,4,0,35);
         rr(23,15,4,0,59);
         for (s=[-1,1]) {
             rr(8.5,16,3,s*47,27);
             rr(8,15,2.8,s*47.4,52);
-            for (y=fan_ready ? [4.5,70] : [17,61]) rr(3.5,9.4,1.5,s*(fan_ready && y<10 ? 22.1 : 24),y);
+            if (!fan_ready)
+                for (y=[17,61]) rr(3.5,9.4,1.5,s*24,y);
             for (y=[carrier_bolt_a,-carrier_bolt_a])
                 slot([s*rear_carrier_x,y-2.3],[s*rear_carrier_x,y+2.3],y<0 ? 3.5 : 3.56);
             for (p=[[40,8],[54,10],[39.7,46],[54.15,47]])
@@ -159,11 +163,12 @@ module chassis(fan_ready=false) {
         union() {
             frame_floor(fan_ready);
             for (s=[-1,1]) {
-                if (fan_ready) {
-                    for (p=[[16,5],[16,69]])
-                        box(2.2,p[0],4,s*25.7,p[1],floor_top-eps,0.7);
-                } else
+                if (!fan_ready)
                     box(2.2,83,4,s*25.7,33,floor_top-eps,0.7);
+                if (fan_ready)
+                    for (p=[[34,-20.5,8],[35.8,80.55,6.6]])
+                        translate([s*p[0],p[1],floor_top-eps])
+                            cylinder(d=p[2],h=15+eps);
                 box(13,10,motor_bottom-floor_top+eps,s*motor_x,80.2,
                     floor_top-eps,1.1);
                 for (y=s==1 ? [22,58] : [24,44])
@@ -172,12 +177,28 @@ module chassis(fan_ready=false) {
                     box(7.7,7.2,nose_seat-floor_top+eps,s*nose_x,y,
                         floor_top-eps,0.85);
             }
-            for (y=[-9,75])
-                box(26,1.8,2.4,0,y,floor_top-eps,0.55);
+            if (!fan_ready)
+                for (y=[-9,75])
+                    box(26,1.8,2.4,0,y,floor_top-eps,0.55);
             motor_tower();
             mirror([1,0,0]) motor_tower();
         }
         plate_at(floor_top-eps,nose_seat-floor_top+2*eps) nose_anchors();
+        if (fan_ready)
+            for (side=[-1,1]) {
+                for (p=[[34,-20.5],[35.8,80.55]])
+                    translate([side*p[0],p[1],floor_top+15-7])
+                        cylinder(d=4.15,h=7+eps);
+                // Leave tool and bolt-head clearance above the front post.
+                translate([side*35.8,80.55,floor_top+15])
+                    cylinder(d=8,h=8);
+                for (y=[23,58])
+                    translate([side*39.4,y,floor_clearance])
+                        rotate_extrude() polygon([
+                            [0,-eps],[1.7,-eps],[1.7,floor_t-1.65],
+                            [3.25,floor_t-0.1],[3.25,floor_t+eps],[0,floor_t+eps]
+                        ]);
+            }
     }
 }
 
@@ -367,7 +388,7 @@ module bare(fan_ready=false) {
 module assembly(use_l298,fan_ready=false) {
     bare(fan_ready);
     wheels_and_drive();
-    battery_reference();
+    if (!fan_ready) battery_reference();
     controller_reference(use_l298);
     driver_reference(use_l298);
     sensor_reference();
