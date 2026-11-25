@@ -3,6 +3,8 @@ use <MyshachiPerehony.scad>
 use <Drive.scad>
 part="assembly"; // [assembly,bare,chassis,adapter,wheel,gauge]
 removable=false;
+driver="L298"; // [L298,dual_DRV8833]
+use_plate=removable || driver=="dual_DRV8833";
 l298_x=33.5;
 l298_y=38.5;
 sensor_shift=0; // [-4:1:4]
@@ -97,6 +99,31 @@ module adapter() {
         plate_at(-e,6) driver_holes(2.6);
     }
 }
+// Two 12.7 x 20.3 mm carriers, retained individually with insulating ties.
+module drv_adapter() {
+    linear_extrude(height=2.4) difference() {
+        union() {
+            rr(42,27,3,0,driver_y);
+            rr(55,9,4,0,driver_y);
+        }
+        for(s=[-1,1]) {
+            translate([23*s,driver_y]) circle(d=3.4);
+            for(dx=[-8,8],dy=[-5,5])
+                rr(2.2,3.8,0.7,s*10+dx,driver_y+dy);
+        }
+    }
+    for(s=[-1,1],dy=[-7,7])
+        box(6,4,3.53,s*10,driver_y+dy,2.37,0.7);
+}
+module selected_adapter() {
+    if(driver=="dual_DRV8833") drv_adapter(); else adapter();
+}
+module drv_pair() {
+    for(s=[-1,1]) {
+        color("#284d78") box(12.7,20.3,1.6,s*10,driver_y,15.9,0.7);
+        color("#30343b") box(5,5,1.3,s*10,driver_y,17.5,0.4);
+    }
+}
 module socket() {
     r=(3+shaft_allowance)/2;
     intersection() {circle(r=r); translate([-r,-r]) square([r+1+shaft_allowance/2,2*r]);}
@@ -115,8 +142,8 @@ module mock_motor(s,y) {
     color("#c6b899") outward(s,52,y,30) cylinder(d=3,h=9.27);
 }
 module scene(full) {
-    color("#c9dae1") frame(removable);
-    if(removable) color("#278f86") translate([0,0,10]) adapter();
+    color("#c9dae1") frame(use_plate);
+    if(use_plate) color("#278f86") translate([0,0,10]) selected_adapter();
     if(full) {
         for(s=[-1,1],y=axles) {
             mock_motor(s,y);
@@ -129,12 +156,13 @@ module scene(full) {
         color("#654d8c") box(28,55,1.6,39,0,12,1);
         color("#454f58") box(15,21,6,-39,13,10,1.5);
         color("#527966") box(18,22,6,-39,-13,10,1.5);
-        translate([0,driver_y-110,(removable ? 15.9 : 13.5)-21.35]) driver_reference(true);
+        if(driver=="dual_DRV8833") drv_pair();
+        else translate([0,driver_y-110,(removable ? 15.9 : 13.5)-21.35]) driver_reference(true);
         translate([0,sensor_shift,0]) sensor_reference();
     }
 }
-if(part=="chassis") translate([0,0,-7]) frame(removable);
-else if(part=="adapter") adapter();
+if(part=="chassis") translate([0,0,-7]) frame(use_plate);
+else if(part=="adapter") selected_adapter();
 else if(part=="wheel") wheel();
 else if(part=="gauge") difference(){cylinder(d=12,h=4);drive_cut(-e,4.1) socket();}
 else scene(part=="assembly");
