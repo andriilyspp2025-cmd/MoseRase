@@ -100,16 +100,25 @@ module floor_outline() {
     }
 }
 
-module frame_floor() {
+module frame_floor(fan_ready=false) {
     plate_at(floor_clearance,floor_t) difference() {
-        floor_outline();
+        union() {
+            floor_outline();
+            if (fan_ready)
+                for (side=[-1,1]) rr(11,47,2,side*26.1,37);
+        }
+        if (fan_ready)
+            for (side=[-1,1]) {
+                rr(6,27,1,side*26.3,37);
+                holes([[side*26.3,17.5],[side*26.3,56.5]],3.4);
+            }
         rr(23,15,4,0,12);
         rr(24,16,4,0,35);
         rr(23,15,4,0,59);
         for (s=[-1,1]) {
             rr(8.5,16,3,s*47,27);
             rr(8,15,2.8,s*47.4,52);
-            for (y=[17,61]) rr(3.5,9.4,1.5,s*24,y);
+            for (y=fan_ready ? [4.5,70] : [17,61]) rr(3.5,9.4,1.5,s*(fan_ready && y<10 ? 22.1 : 24),y);
             for (y=[carrier_bolt_a,-carrier_bolt_a])
                 slot([s*rear_carrier_x,y-2.3],[s*rear_carrier_x,y+2.3],y<0 ? 3.5 : 3.56);
             for (p=[[40,8],[54,10],[39.7,46],[54.15,47]])
@@ -145,12 +154,16 @@ module motor_tower() {
     }
 }
 
-module chassis() {
+module chassis(fan_ready=false) {
     difference() {
         union() {
-            frame_floor();
+            frame_floor(fan_ready);
             for (s=[-1,1]) {
-                box(2.2,83,4,s*25.7,33,floor_top-eps,0.7);
+                if (fan_ready) {
+                    for (p=[[16,5],[16,69]])
+                        box(2.2,p[0],4,s*25.7,p[1],floor_top-eps,0.7);
+                } else
+                    box(2.2,83,4,s*25.7,33,floor_top-eps,0.7);
                 box(13,10,motor_bottom-floor_top+eps,s*motor_x,80.2,
                     floor_top-eps,1.1);
                 for (y=s==1 ? [22,58] : [24,44])
@@ -345,14 +358,14 @@ module sensor_reference() {
     }
 }
 
-module bare() {
-    color("#dee7ed") chassis();
+module bare(fan_ready=false) {
+    color("#dee7ed") chassis(fan_ready);
     color("#32a295") translate([0,0,nose_seat]) nose();
     color("#dee7ed") for (s=[-1,1]) rear_carrier_reference(s);
 }
 
-module assembly(use_l298) {
-    bare();
+module assembly(use_l298,fan_ready=false) {
+    bare(fan_ready);
     wheels_and_drive();
     battery_reference();
     controller_reference(use_l298);
