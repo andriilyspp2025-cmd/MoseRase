@@ -100,7 +100,7 @@ module floor_outline() {
     }
 }
 
-module frame_floor(fan_ready=false) {
+module frame_floor(fan_ready=false, fixed_rear_axle=false) {
     plate_at(floor_clearance,floor_t) difference() {
         union() {
             floor_outline();
@@ -124,7 +124,10 @@ module frame_floor(fan_ready=false) {
             if (!fan_ready)
                 for (y=[17,61]) rr(3.5,9.4,1.5,s*24,y);
             for (y=[carrier_bolt_a,-carrier_bolt_a])
-                slot([s*rear_carrier_x,y-2.3],[s*rear_carrier_x,y+2.3],y<0 ? 3.5 : 3.56);
+                if (fixed_rear_axle)
+                    holes([[s*rear_carrier_x,y]],3.5);
+                else
+                    slot([s*rear_carrier_x,y-2.3],[s*rear_carrier_x,y+2.3],y<0 ? 3.5 : 3.56);
             for (p=[[40,8],[54,10],[39.7,46],[54.15,47]])
                 rr(3,5.1,1.35,s*p[0],p[1]);
             for (x=[37.7,55.2]) rr(2.8,6,1.25,s*x,92);
@@ -158,10 +161,10 @@ module motor_tower() {
     }
 }
 
-module chassis(fan_ready=false) {
+module chassis(fan_ready=false, fixed_rear_axle=false) {
     difference() {
         union() {
-            frame_floor(fan_ready);
+            frame_floor(fan_ready,fixed_rear_axle);
             for (s=[-1,1]) {
                 if (!fan_ready)
                     box(2.2,83,4,s*25.7,33,floor_top-eps,0.7);
